@@ -1,0 +1,797 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chanceland</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800;900&display=swap">
+<style>
+/* Layout: one full-window 16:9-feeling game stage; each screen is a scene layer + a header bar + a play grid that restacks on portrait phones.
+   Single deliberate look (bright storybook day), so one light palette set explicitly. */
+:root{
+  color-scheme: light;
+  --sky-top:#7fcdf2; --sky-low:#dff4ff;
+  --grass:#83cc58; --grass-dk:#4f9f37; --hill:#a7d97a;
+  --brown:#5b2f10; --brown-soft:rgba(91,47,16,.78);
+  --gold:#c38b2f; --gold-dk:#8b5a17; --gold-lt:#f1c46a;
+  --cream:rgba(250,232,180,.88);
+  --olive:rgba(111,104,66,.9);
+  --ink:#3a2212; --white:#ffffff;
+  --red-btn:#f2726b; --blue-btn:#5b84c6;
+  --star:#f7c331; --good:#3aa55b; --bad:#d9534f;
+  --lilac:#b48ae0; --pink:#f0638f; --amber:#efb53a;
+  --f-display:'Poppins', 'Arial Rounded MT Bold', 'Trebuchet MS', system-ui, sans-serif;
+  --f-body:'Poppins', 'Segoe UI', system-ui, sans-serif;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--sky-top);color:var(--ink);font-family:var(--f-body);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+button{font-family:inherit;cursor:pointer;border:0}
+button:focus-visible{outline:3px solid var(--white);outline-offset:3px;box-shadow:0 0 0 6px var(--brown)}
+button:disabled{cursor:default}
+
+#game{position:relative;height:100%;width:100%;overflow:hidden}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;padding:clamp(10px,2vh,22px) clamp(16px,2.5vw,36px);gap:clamp(8px,1.6vh,18px);animation:fadeIn .35s ease}
+.screen[hidden]{display:none!important}
+@keyframes fadeIn{from{opacity:.0;transform:scale(1.01)}to{opacity:1;transform:none}}
+.scene{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.scene svg{position:absolute;inset:0;width:100%;height:100%}
+.screen > *:not(.scene){position:relative;z-index:1}
+
+/* Brand mark */
+.mark{display:flex;align-items:center;gap:8px;color:#1f3a7a;font-weight:800;line-height:1}
+.mark b{font-size:clamp(22px,3.4vw,40px);letter-spacing:-2px;font-family:Georgia,serif;font-style:italic}
+.mark span{font-size:clamp(9px,1vw,12px);font-weight:700;max-width:6em;line-height:1.1}
+
+/* Header bar shared by the levels */
+.hud{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.lvl-title{background:var(--olive);color:var(--white);font-weight:700;font-size:clamp(15px,2.3vw,30px);padding:.35em 1em;border-radius:14px;text-wrap:balance;box-shadow:0 4px 0 rgba(0,0,0,.12)}
+.lvl-title small{font-weight:600;opacity:.85;font-size:.6em;margin-left:.6em;letter-spacing:.04em}
+.hud-right{display:flex;align-items:center;gap:10px}
+.starpill{display:flex;align-items:center;background:var(--white);border-radius:999px;padding:4px 16px 4px 4px;font-weight:800;font-size:clamp(15px,2vw,24px);color:var(--ink);box-shadow:0 3px 0 rgba(0,0,0,.15);font-variant-numeric:tabular-nums}
+.starpill svg{width:2.1em;height:2.1em;margin:-0.55em .3em -0.55em -0.4em;filter:drop-shadow(0 2px 1px rgba(0,0,0,.2))}
+.starpill.bump{animation:bump .5s ease}
+@keyframes bump{40%{transform:scale(1.2)}}
+.roundbtn{width:clamp(38px,4.4vw,52px);height:clamp(38px,4.4vw,52px);border-radius:50%;background:var(--amber);color:var(--white);display:grid;place-items:center;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18),0 3px 0 rgba(0,0,0,.15)}
+.roundbtn.red{background:#d4423a;border:3px solid #f6b2ab}
+.roundbtn svg{width:55%;height:55%}
+
+/* Thought cloud */
+.cloud{position:relative;width:100%;max-width:280px;aspect-ratio:200/150;display:grid;place-items:center;justify-self:center}
+.cloud svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.cloud p{position:relative;margin:0;padding:0 16% 18%;text-align:center;font-weight:700;color:var(--brown);font-size:clamp(14px,1.9vw,24px);line-height:1.25;text-wrap:balance}
+.cloud p .sub{display:block;font-size:.62em;font-weight:600;opacity:.8;margin-top:.2em}
+.cloud.talk{animation:wobble .5s ease}
+@keyframes wobble{30%{transform:scale(1.06) rotate(-1.5deg)}60%{transform:scale(.98)}}
+
+/* Big buttons */
+.gold-btn{background:linear-gradient(#cf9a3c,var(--gold));color:var(--white);font-weight:800;font-size:clamp(22px,3.6vw,46px);padding:.25em 1.1em;border-radius:18px;display:inline-flex;align-items:center;gap:.4em;box-shadow:inset 0 -6px 0 var(--gold-dk),0 6px 14px rgba(70,40,10,.3);transition:transform .12s}
+.gold-btn:hover:not(:disabled){transform:translateY(-2px)}
+.gold-btn:active:not(:disabled){transform:translateY(2px)}
+.gold-btn:disabled{filter:grayscale(.7) brightness(1.05);opacity:.6}
+.gold-btn .tri{width:0;height:0;border-left:.7em solid var(--brown);border-top:.45em solid transparent;border-bottom:.45em solid transparent}
+.gold-btn.sm{font-size:clamp(16px,2vw,24px);border-radius:14px}
+
+.next-arrow{display:inline-flex;align-items:center;background:none;padding:0;filter:drop-shadow(0 3px 2px rgba(0,0,0,.25));transition:transform .15s}
+.next-arrow svg{height:clamp(38px,5.5vw,62px);width:auto}
+.next-arrow:disabled{opacity:.35;filter:grayscale(1)}
+.next-arrow.ready{animation:nudge 1.1s ease-in-out infinite}
+@keyframes nudge{50%{transform:translateX(8px)}}
+
+/* ---------- TITLE ---------- */
+#s-title .stage-title{flex:1;display:grid;grid-template-columns:1fr 1.6fr 1fr;align-items:center;gap:2vw}
+.title-panel{background:var(--cream);border-radius:22px;padding:.15em .5em;font-family:var(--f-display);font-weight:900;color:var(--brown);font-size:clamp(40px,8.4vw,120px);letter-spacing:.02em;text-align:center;line-height:1.15;box-shadow:0 8px 24px rgba(90,50,10,.18);animation:floaty 4s ease-in-out infinite}
+@keyframes floaty{50%{transform:translateY(-6px)}}
+.title-mid{display:flex;flex-direction:column;align-items:center;gap:clamp(18px,5vh,56px)}
+.title-tag{background:rgba(255,255,255,.75);color:var(--brown);font-weight:600;font-size:clamp(13px,1.5vw,18px);padding:.4em 1em;border-radius:999px;text-align:center}
+.title-left{display:flex;flex-direction:column;align-items:center;gap:2vh}
+.deco-gift{font-size:clamp(48px,7vw,96px);position:relative;line-height:1}
+.deco-gift i{position:absolute;font-style:normal;font-weight:900;color:var(--amber);font-size:.38em;text-shadow:0 2px 0 var(--gold-dk)}
+.deco-dice{display:flex;align-items:flex-end}
+.mini-die{width:clamp(44px,6vw,80px);aspect-ratio:1;background:var(--white);border:3px solid #222;border-radius:16%;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:10%;box-shadow:4px 5px 0 #c9c9c9}
+.mini-die:nth-child(1){transform:rotate(-14deg)}
+.mini-die:nth-child(2){transform:rotate(18deg) translate(-12%,-35%)}
+.mini-die i{width:70%;aspect-ratio:1;background:#222;border-radius:50%;place-self:center}
+
+/* ---------- MAP ---------- */
+#s-map .map-wrap{flex:1;position:relative;min-height:0}
+#s-map .map-wrap svg{position:absolute;inset:0;width:100%;height:100%}
+.map-head{align-self:center;background:var(--brown-soft);color:var(--white);font-weight:800;font-size:clamp(20px,3.2vw,42px);padding:.15em .9em;border-radius:14px;letter-spacing:.02em}
+.lvl-node{position:absolute;transform:translate(-50%,-50%);font-weight:800;font-size:clamp(18px,2.8vw,38px);color:var(--white);padding:.2em .8em;border-radius:14px;display:flex;align-items:center;gap:.35em;box-shadow:inset 0 -5px 0 rgba(0,0,0,.15),0 6px 12px rgba(0,0,0,.2);transition:transform .15s;white-space:nowrap}
+.lvl-node:hover:not(:disabled){transform:translate(-50%,-50%) scale(1.06)}
+.lvl-node[data-l="1"]{background:var(--lilac);left:30%;top:86%}
+.lvl-node[data-l="2"]{background:var(--pink);left:52%;top:46%}
+.lvl-node[data-l="3"]{background:var(--amber);left:82%;top:68%}
+.lvl-node:disabled{filter:grayscale(.85);opacity:.8}
+.lvl-node .tag{font-size:.45em;background:rgba(255,255,255,.3);border-radius:999px;padding:.1em .6em;font-weight:700}
+.lvl-node.current{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:inset 0 -5px 0 rgba(0,0,0,.15),0 0 0 10px rgba(255,255,255,.45)}}
+.map-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.hint{background:rgba(255,255,255,.82);border-radius:12px;padding:.45em .9em;font-weight:600;font-size:clamp(12px,1.4vw,16px);color:var(--brown)}
+
+/* ---------- LEVEL 1 ---------- */
+.l1-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(150px,24%) minmax(0,1fr) minmax(0,1.25fr);align-items:center;gap:2vw}
+.l1-left{display:flex;flex-direction:column;align-items:center;gap:1.5vh}
+.taskdots{display:flex;gap:8px}
+.taskdots i{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.6);border:2px solid var(--brown-soft)}
+.taskdots i.on{background:var(--star)}
+.taskdots i.done{background:var(--good)}
+.die-zone{display:flex;flex-direction:column;align-items:center;gap:clamp(28px,7vh,64px)}
+.die-btn{background:none;padding:0;perspective:900px;position:relative;border-radius:20%}
+.die-btn.ask::after{content:"";position:absolute;inset:-14%;border-radius:30%;border:4px dashed rgba(255,255,255,.9);animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tilt{transform-style:preserve-3d;transform:rotateX(-18deg) rotateY(24deg)}
+.cube{--s:clamp(110px,15vw,210px);width:var(--s);height:var(--s);position:relative;transform-style:preserve-3d;transition:transform 1.4s cubic-bezier(.2,.75,.25,1)}
+.face{position:absolute;inset:0;border-radius:18%;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:14%;background:var(--die);box-shadow:inset 0 0 calc(var(--s)*.12) var(--die-shade);backface-visibility:hidden}
+.face i{width:62%;aspect-ratio:1;border-radius:50%;background:var(--pip);place-self:center;box-shadow:inset 0 2px 3px rgba(0,0,0,.3)}
+.f1{transform:translateZ(calc(var(--s)/2))}
+.f6{transform:rotateY(180deg) translateZ(calc(var(--s)/2))}
+.f3{transform:rotateY(90deg) translateZ(calc(var(--s)/2))}
+.f4{transform:rotateY(-90deg) translateZ(calc(var(--s)/2))}
+.f2{transform:rotateX(90deg) translateZ(calc(var(--s)/2))}
+.f5{transform:rotateX(-90deg) translateZ(calc(var(--s)/2))}
+.die-red{--die:#e0302b;--die-shade:#8e1210;--pip:#ffffff}
+.die-white{--die:#f7f7f7;--die-shade:#bcbcbc;--pip:#2a2a2a}
+.die-green{--die:#9ed06a;--die-shade:#4f8a2c;--pip:#2f4a24}
+.roll-label{font-weight:800;color:var(--brown);background:rgba(255,255,255,.85);padding:.3em .9em;border-radius:999px;font-size:clamp(13px,1.5vw,18px);min-height:1.6em}
+.field{display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:clamp(6px,1.4vw,22px);padding:1vw}
+.field.locked .item{pointer-events:none;opacity:.55}
+.item{background:none;padding:0;position:relative;width:clamp(56px,7.4vw,108px);height:clamp(70px,9.4vw,136px);display:grid;place-items:center;transition:transform .15s}
+.item:hover:not(:disabled){transform:translateY(-4px) rotate(-3deg)}
+.item:nth-child(odd){margin-top:2.4vw}
+/* balloons */
+.balloon{width:78%;aspect-ratio:.82;border-radius:50% 50% 48% 48%/55% 55% 45% 45%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.75),transparent 22%),radial-gradient(circle at 50% 55%,var(--c),color-mix(in srgb,var(--c) 70%,#000) 100%);position:relative;box-shadow:inset -6px -8px 12px rgba(0,0,0,.18);animation:bob 3s ease-in-out infinite;animation-delay:var(--d)}
+.balloon::after{content:"";position:absolute;left:50%;top:99%;width:2px;height:40%;background:rgba(80,60,40,.6);transform-origin:top}
+.balloon::before{content:"";position:absolute;left:50%;bottom:-4%;transform:translateX(-50%);border:5px solid transparent;border-bottom:7px solid color-mix(in srgb,var(--c) 75%,#000)}
+@keyframes bob{50%{transform:translateY(-8px) rotate(2deg)}}
+.item.popped .balloon{animation:pop .35s ease forwards}
+@keyframes pop{60%{transform:scale(1.35);opacity:.6}100%{transform:scale(.2);opacity:0}}
+/* fruit halves */
+.fruit{font-size:clamp(46px,6.2vw,90px);line-height:1;position:relative;width:1.1em;height:1.1em}
+.fruit span{position:absolute;inset:0;display:grid;place-items:center;transition:transform .45s ease,opacity .45s ease .25s}
+.fruit .h1{clip-path:polygon(0 0,55% 0,45% 100%,0 100%)}
+.fruit .h2{clip-path:polygon(55% 0,100% 0,100% 100%,45% 100%)}
+.item.cut .h1{transform:translate(-22%,12%) rotate(-24deg)}
+.item.cut .h2{transform:translate(22%,16%) rotate(22deg)}
+.item.cut .fruit span{opacity:.25}
+.slash{position:absolute;left:5%;right:5%;top:50%;height:4px;background:var(--white);border-radius:4px;box-shadow:0 0 8px var(--white);transform:rotate(-58deg) scaleX(0);pointer-events:none}
+.item.cut .slash{animation:slash .3s ease forwards}
+@keyframes slash{50%{transform:rotate(-58deg) scaleX(1);opacity:1}100%{transform:rotate(-58deg) scaleX(1);opacity:0}}
+.item .tick{position:absolute;top:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--good);color:var(--white);font-weight:800;display:none;place-items:center;font-size:15px;box-shadow:0 2px 0 rgba(0,0,0,.2)}
+.item.got .tick{display:grid}
+.spark{position:absolute;width:9px;height:9px;border-radius:2px;pointer-events:none;z-index:5;animation:fly .7s ease-out forwards}
+@keyframes fly{to{transform:translate(var(--x),var(--y)) rotate(260deg);opacity:0}}
+.l-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:56px}
+.fact{background:rgba(255,255,255,.88);border-radius:14px;padding:.5em 1em;font-weight:600;color:var(--brown);font-size:clamp(12px,1.45vw,17px);max-width:62ch}
+.fact:empty{visibility:hidden}
+
+/* ---------- LEVEL 2 ---------- */
+.l2-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:center;gap:2vw}
+.wheel-zone{display:flex;flex-direction:column;align-items:center;position:relative;height:100%;justify-content:center;min-height:0}
+.wheel-stand{position:relative;width:min(58vh,44vw);max-width:100%;display:flex;flex-direction:column;align-items:center}
+.wheel-box{position:relative;width:78%;aspect-ratio:1;z-index:2}
+.wheel-box > *{position:absolute;inset:0;width:100%;height:100%;display:block}
+.wheel-spin{transition:transform 3.6s cubic-bezier(.12,.7,.18,1);will-change:transform}
+.wheel-spin svg,.wheel-frame{width:100%;height:100%;overflow:visible}
+.wheel-frame{pointer-events:none}
+.pedestal{width:100%;margin-top:-14%;position:relative;z-index:1;display:block;filter:drop-shadow(0 10px 12px rgba(120,70,10,.25))}
+.l2-side{display:flex;flex-direction:column;align-items:center;gap:2vh}
+.chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:min(100%,360px)}
+.chip{display:flex;align-items:center;gap:.5em;padding:.45em .8em;border-radius:14px;background:var(--white);color:var(--ink);font-weight:800;font-size:clamp(15px,1.8vw,22px);box-shadow:0 4px 0 rgba(0,0,0,.14);border:4px solid transparent;transition:transform .12s}
+.chip i{width:1.3em;height:1.3em;border-radius:50%;background:var(--c);box-shadow:inset 0 -3px 0 rgba(0,0,0,.2)}
+.chip[aria-pressed="true"]{border-color:var(--brown);transform:translateY(-3px)}
+.chip:disabled{opacity:.55}
+.chip.nudge{animation:shake .4s}
+.round-lbl{font-weight:700;color:var(--brown);background:rgba(255,255,255,.85);padding:.25em .9em;border-radius:999px;font-size:clamp(12px,1.4vw,16px)}
+
+/* ---------- LEVEL 3 ---------- */
+.l3-main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,3.4vh,40px)}
+.q{margin:0;font-weight:800;color:var(--ink);font-size:clamp(22px,3.8vw,50px);text-align:center;text-wrap:balance;line-height:1.15}
+.q-sub{margin:-1.5vh 0 0;font-weight:600;color:var(--brown);font-size:clamp(13px,1.5vw,18px);text-align:center;background:rgba(255,255,255,.7);padding:.2em .9em;border-radius:999px}
+.row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:clamp(4px,.9vw,14px)}
+.ball{width:clamp(44px,8.4vw,120px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.85) 0 9%,transparent 26%),radial-gradient(circle at 50% 50%,var(--c) 55%,color-mix(in srgb,var(--c) 70%,#000));box-shadow:0 5px 8px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s}
+.emo{font-size:clamp(40px,7.6vw,110px);line-height:1;transition:transform .15s,filter .15s}
+.thing.hl{transform:scale(1.18) translateY(-6px)}
+.thing.hl.ball{box-shadow:0 0 0 6px var(--white),0 0 0 11px var(--star)}
+.thing.hl.emo{filter:drop-shadow(0 0 6px var(--white)) drop-shadow(0 0 12px var(--star))}
+.thing.dim{opacity:.35}
+.answers{display:flex;justify-content:space-around;width:min(100%,900px);gap:16px;flex-wrap:wrap}
+.ans{min-width:8.5em;color:var(--white);font-weight:800;font-size:clamp(20px,3.4vw,44px);padding:.25em .9em;border-radius:16px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.15),0 5px 10px rgba(0,0,0,.15);transition:transform .12s}
+.ans.a{background:var(--red-btn)}
+.ans.b{background:var(--blue-btn)}
+.ans:hover:not(:disabled){transform:translateY(-3px)}
+.ans.right{box-shadow:0 0 0 5px var(--white),0 0 0 10px var(--good)}
+.ans.wrong{animation:shake .4s;opacity:.7}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+
+/* ---------- END ---------- */
+#s-end .end-mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.4vh;text-align:center}
+.the-end{font-weight:900;font-size:clamp(54px,11vw,160px);color:#111;letter-spacing:.02em;line-height:1;text-shadow:0 4px 0 rgba(255,255,255,.6)}
+.score-card{background:rgba(255,255,255,.9);border-radius:22px;padding:1em 1.6em;display:flex;flex-direction:column;align-items:center;gap:.4em;box-shadow:0 10px 26px rgba(30,60,90,.2)}
+.score-big{font-weight:900;font-size:clamp(36px,5vw,64px);color:var(--brown);display:flex;align-items:center;gap:.2em;font-variant-numeric:tabular-nums}
+.score-big svg{width:1.1em;height:1.1em}
+.rank{font-weight:800;color:var(--gold-dk);font-size:clamp(16px,2vw,24px)}
+.breakdown{display:flex;gap:1.4em;font-weight:600;color:var(--brown);font-size:clamp(12px,1.4vw,16px);flex-wrap:wrap;justify-content:center;font-variant-numeric:tabular-nums}
+.end-btns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+
+/* ---------- Overlay ---------- */
+.overlay{position:absolute;inset:0;z-index:20;background:rgba(40,25,10,.45);display:grid;place-items:center;padding:16px;animation:fadeIn .25s}
+.card{background:#fff8e6;border-radius:24px;padding:clamp(18px,3vw,34px);width:min(460px,100%);text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center;box-shadow:0 0 0 6px var(--gold-lt),0 20px 40px rgba(0,0,0,.3)}
+.card h2{margin:0;font-weight:900;color:var(--brown);font-size:clamp(24px,3vw,36px);text-wrap:balance}
+.card p{margin:0;font-weight:600;color:var(--ink);font-size:clamp(14px,1.6vw,18px);line-height:1.45}
+.card .stars-row{display:flex;gap:6px}
+.card .stars-row svg{width:44px;height:44px;animation:pop-in .4s ease backwards}
+@keyframes pop-in{from{transform:scale(0) rotate(-40deg)}}
+.card .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.plain-btn{background:var(--white);color:var(--brown);font-weight:700;font-size:clamp(14px,1.6vw,18px);padding:.55em 1.1em;border-radius:12px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.1),0 0 0 2px rgba(91,47,16,.25)}
+
+/* ---------- Portrait / phone ---------- */
+@media (max-aspect-ratio: 1/1){
+  body{overflow:auto}
+  #game{min-height:100%;height:auto}
+  .screen{position:relative;min-height:100%}
+  #s-title .stage-title{grid-template-columns:1fr;justify-items:center;gap:3vh}
+  .title-left{flex-direction:row;order:2}
+  .title-right{display:none}
+  .l1-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto}
+  .l1-grid .field{grid-column:1/-1}
+  .l2-grid{grid-template-columns:1fr}
+  .wheel-box{width:min(78vw,46vh)}
+  .pedestal{width:min(88vw,54vh);height:5vh}
+  .item:nth-child(odd){margin-top:0}
+  #s-map .map-wrap{min-height:70vh}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important}
+  .cube{transition-duration:.3s}
+  .wheel-spin{transition-duration:.5s}
+}
+</style>
+
+<div id="game">
+
+  <!-- TITLE -->
+  <section class="screen" id="s-title">
+    <div class="scene" data-scene="castle"></div>
+    <div class="mark"><b>DA</b><span>Decipher Academy</span></div>
+    <div class="stage-title">
+      <div class="title-left">
+        <div class="deco-gift" aria-hidden="true">🎁<i style="left:-12%;top:-30%">?</i><i style="left:40%;top:-55%">?</i><i style="right:-14%;top:-25%">?</i></div>
+        <div class="deco-dice" aria-hidden="true">
+          <div class="mini-die"><i style="grid-area:1/1"></i><i style="grid-area:1/3"></i><i style="grid-area:2/2"></i><i style="grid-area:3/1"></i><i style="grid-area:3/3"></i></div>
+          <div class="mini-die"><i style="grid-area:1/1"></i><i style="grid-area:2/2"></i><i style="grid-area:3/3"></i></div>
+        </div>
+      </div>
+      <div class="title-mid">
+        <h1 class="title-panel" style="margin:0">CHANCELAND</h1>
+        <div class="title-tag">Roll, spin and pick your way through the land of chance</div>
+        <button class="gold-btn" id="startBtn">Start <span class="tri"></span></button>
+      </div>
+      <div class="title-right"></div>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section class="screen" id="s-map" hidden>
+    <div class="scene" data-scene="meadow"></div>
+    <div class="hud">
+      <div class="mark"><b>DA</b><span>Decipher Academy</span></div>
+      <div class="map-head">ENTER WORLD</div>
+      <div class="hud-right"><div class="starpill" data-starpill></div></div>
+    </div>
+    <div class="map-wrap">
+      <svg viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true" id="mapSvg"></svg>
+      <button class="lvl-node" data-l="1">Level 1 <span class="tag"></span></button>
+      <button class="lvl-node" data-l="2">Level 2 <span class="tag"></span></button>
+      <button class="lvl-node" data-l="3">Level 3 <span class="tag"></span></button>
+    </div>
+    <div class="map-foot">
+      <div class="hint" id="mapHint">Tap Level 1 to begin your journey.</div>
+      <button class="gold-btn sm" id="finishBtn" hidden>See my score <span class="tri"></span></button>
+    </div>
+  </section>
+
+  <!-- LEVEL 1 -->
+  <section class="screen" id="s-l1" hidden>
+    <div class="scene" data-scene="sky"></div>
+    <div class="hud">
+      <div class="lvl-title">LEVEL 1 — Dice Playground</div>
+      <div class="hud-right">
+        <div class="starpill" data-starpill></div>
+        <button class="roundbtn" data-pause aria-label="Pause"></button>
+      </div>
+    </div>
+    <div class="l1-grid">
+      <div class="l1-left">
+        <div class="cloud" id="l1Cloud"><p></p></div>
+        <div class="taskdots" id="l1Dots"><i></i><i></i><i></i></div>
+      </div>
+      <div class="die-zone">
+        <button class="die-btn" id="dieBtn" aria-label="Roll the dice">
+          <div class="tilt"><div class="cube" id="cube"></div></div>
+        </button>
+        <div class="roll-label" id="rollLbl">Tap the dice to roll</div>
+      </div>
+      <div class="field locked" id="field"></div>
+    </div>
+    <div class="l-foot">
+      <div class="fact" id="l1Fact"></div>
+      <button class="next-arrow" id="l1Next" disabled aria-label="Next"></button>
+    </div>
+  </section>
+
+  <!-- LEVEL 2 -->
+  <section class="screen" id="s-l2" hidden>
+    <div class="scene" data-scene="sky"></div>
+    <div class="hud">
+      <div class="lvl-title">LEVEL 2 — Guess &amp; Spin</div>
+      <div class="hud-right">
+        <button class="roundbtn red" id="l2Restart" aria-label="Restart level"></button>
+        <div class="starpill" data-starpill></div>
+        <button class="roundbtn" data-pause aria-label="Pause"></button>
+      </div>
+    </div>
+    <div class="l2-grid">
+      <div class="wheel-zone">
+        <div class="wheel-stand">
+          <div class="wheel-box" aria-label="Spinner wheel" role="img">
+            <div class="wheel-spin" id="wheelSpin"><svg viewBox="0 0 400 400" id="wheelSvg"></svg></div>
+            <svg class="wheel-frame" viewBox="0 0 400 400" id="wheelFrame"></svg>
+          </div>
+          <svg class="pedestal" viewBox="0 0 400 130" id="pedestal" aria-hidden="true"></svg>
+        </div>
+      </div>
+      <div class="l2-side">
+        <div class="round-lbl" id="l2Round">Spin 1 of 3</div>
+        <div class="cloud" id="l2Cloud"><p></p></div>
+        <div class="chips" id="chips"></div>
+        <button class="gold-btn sm" id="spinBtn" disabled>SPIN</button>
+      </div>
+    </div>
+    <div class="l-foot">
+      <div class="fact" id="l2Fact"></div>
+      <button class="next-arrow" id="l2Next" disabled aria-label="Next"></button>
+    </div>
+  </section>
+
+  <!-- LEVEL 3 -->
+  <section class="screen" id="s-l3" hidden>
+    <div class="scene" data-scene="clouds"></div>
+    <div class="hud">
+      <div class="lvl-title">LEVEL 3 — Pick the Most Likely <small id="l3Count">1 / 3</small></div>
+      <div class="hud-right">
+        <div class="starpill" data-starpill></div>
+        <button class="roundbtn" data-pause aria-label="Pause"></button>
+      </div>
+    </div>
+    <div class="l3-main">
+      <h2 class="q" id="l3Q"></h2>
+      <p class="q-sub" id="l3Sub"></p>
+      <div class="row" id="l3Row"></div>
+      <div class="answers" id="l3Ans"></div>
+    </div>
+    <div class="l-foot">
+      <div class="fact" id="l3Fact"></div>
+      <button class="next-arrow" id="l3Next" disabled aria-label="Next"></button>
+    </div>
+  </section>
+
+  <!-- END -->
+  <section class="screen" id="s-end" hidden>
+    <div class="scene" data-scene="castle"></div>
+    <div class="mark"><b>DA</b><span>Decipher Academy</span></div>
+    <div class="end-mid">
+      <div class="the-end">THE END</div>
+      <div class="score-card">
+        <div class="score-big"><span id="endScore">0</span>/50</div>
+        <div class="rank" id="endRank"></div>
+        <div class="breakdown" id="endBreak"></div>
+      </div>
+      <div class="end-btns">
+        <button class="gold-btn sm" id="againBtn">Play again</button>
+        <button class="plain-btn" id="endMap">Back to map</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const MAX=50, BONUS=5;
+const STAR='<svg viewBox="0 0 24 24"><path d="M12 1.8l3.1 6.5 7.1.9-5.2 4.9 1.3 7-6.3-3.4-6.3 3.4 1.3-7L1.8 9.2l7.1-.9z" fill="#f7c331" stroke="#e09a16" stroke-width="1.2" stroke-linejoin="round"/><path d="M8 7.5l1.4-.6" stroke="#fff6c8" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const PAUSE='<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1.5" fill="#fff"/><rect x="14" y="4" width="4" height="16" rx="1.5" fill="#fff"/></svg>';
+const RESTART='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4v4h-4"/></svg>';
+const NEXT='<svg viewBox="0 0 150 60"><rect x="0" y="16" width="4" height="28" fill="#5b2f10"/><rect x="8" y="16" width="4" height="28" fill="#5b2f10"/><rect x="16" y="16" width="4" height="28" fill="#5b2f10"/><path d="M24 16h90V4l34 26-34 26V44H24z" fill="#8a5419" stroke="#5b2f10" stroke-width="3" stroke-linejoin="round"/><text x="68" y="38" text-anchor="middle" font-family="Poppins,Arial" font-weight="800" font-size="20" fill="#fff">NEXT</text></svg>';
+const CLOUD='<svg viewBox="0 0 200 150" aria-hidden="true"><circle cx="30" cy="140" r="5" fill="#fff" stroke="#3a2a20" stroke-width="2.5"/><circle cx="44" cy="126" r="8" fill="#fff" stroke="#3a2a20" stroke-width="2.5"/><path d="M48 112C18 114 6 88 22 74 6 58 20 30 48 37 54 12 92 6 104 28 116 6 158 10 160 40 190 38 198 76 176 88 190 110 162 124 142 112 128 128 92 128 80 114 70 124 54 122 48 112Z" fill="#fff" stroke="#3a2a20" stroke-width="3" stroke-linejoin="round"/></svg>';
+const PIPS={1:[[2,2]],2:[[1,1],[3,3]],3:[[1,1],[2,2],[3,3]],4:[[1,1],[1,3],[3,1],[3,3]],5:[[1,1],[1,3],[2,2],[3,1],[3,3]],6:[[1,1],[2,1],[3,1],[1,3],[2,3],[3,3]]};
+const FACE_ROT={1:[0,0],2:[-90,0],3:[0,-90],4:[0,90],5:[90,0],6:[0,180]};
+
+/* ---------- sound (starts after first tap) ---------- */
+let ac=null, muted=false;
+function tone(f,d=.12,type='sine',v=.15,delay=0){
+  if(muted) return;
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const t=ac.currentTime+delay,o=ac.createOscillator(),g=ac.createGain();
+    o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);
+    o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d);
+  }catch(e){}
+}
+const sfx={
+  tap:()=>tone(520,.07,'triangle',.12),
+  pop:()=>{tone(900,.06,'square',.08);tone(300,.1,'triangle',.1,.03)},
+  slice:()=>{tone(1400,.05,'sawtooth',.05);tone(700,.12,'triangle',.08,.04)},
+  win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.18,'triangle',.13,i*.09)),
+  ok:()=>[660,880].forEach((f,i)=>tone(f,.15,'triangle',.13,i*.1)),
+  no:()=>tone(200,.25,'sawtooth',.07),
+  tick:()=>tone(1200,.025,'square',.04)
+};
+
+/* ---------- state ---------- */
+const S={screen:'title',stars:{1:0,2:0,3:0},done:{1:false,2:false,3:false},bonus:0};
+const total=()=>S.stars[1]+S.stars[2]+S.stars[3]+S.bonus;
+function renderStars(bump){
+  $$('[data-starpill]').forEach(p=>{
+    p.innerHTML=STAR+'<span>'+total()+'/'+MAX+'</span>';
+    if(bump){p.classList.remove('bump');void p.offsetWidth;p.classList.add('bump')}
+  });
+}
+function addStars(l,n){S.stars[l]+=n;renderStars(true)}
+
+/* ---------- scenes ---------- */
+function hills(){return '<path d="M0 640 C200 560 360 590 520 620 C700 520 860 560 1000 600 V720 H0Z" fill="#a8db7c"/><path d="M0 690 C220 620 420 660 600 680 C760 640 900 660 1000 650 V720 H0Z" fill="#83cc58"/>'}
+function clouds(y){return '<g fill="#fff" opacity=".92"><ellipse cx="120" cy="'+y+'" rx="90" ry="30"/><ellipse cx="170" cy="'+(y-20)+'" rx="60" ry="32"/><ellipse cx="820" cy="'+(y+30)+'" rx="110" ry="30"/><ellipse cx="870" cy="'+(y+8)+'" rx="60" ry="30"/></g>'}
+function sky(id){return '<defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fcdf2"/><stop offset=".75" stop-color="#dff4ff"/><stop offset="1" stop-color="#fff6d8"/></linearGradient></defs><rect width="1000" height="720" fill="url(#'+id+')"/>'}
+function castle(x,y,s){return '<g transform="translate('+x+' '+y+') scale('+s+')"><path d="M-60 120 Q-20 40 80 30 Q160 40 200 120Z" fill="#7cc855"/><path d="M60 -30 l40 -60 40 60z" fill="#f08bb0"/><rect x="66" y="-30" width="68" height="110" rx="6" fill="#ffd7e4"/><rect x="88" y="-8" width="24" height="28" rx="12" fill="#ff6f9a"/><rect x="0" y="20" width="200" height="80" rx="10" fill="#f6c8d8"/><path d="M-10 20 l30 -40 30 40z" fill="#f08bb0"/><path d="M150 20 l30 -40 30 40z" fill="#f08bb0"/><rect x="82" y="50" width="36" height="50" rx="18" fill="#d6345f"/><circle cx="40" cy="52" r="9" fill="#9fd3ff"/><circle cx="160" cy="52" r="9" fill="#9fd3ff"/><path d="M100 -90 v-30 l24 10 -24 10" fill="#f07a3a" stroke="#a24c1a" stroke-width="3"/></g>'}
+function coins(){let g='';[[860,170,28],[920,240,22],[970,300,18]].forEach(c=>{g+='<g><circle cx="'+c[0]+'" cy="'+c[1]+'" r="'+c[2]+'" fill="#f2b632" stroke="#c6861b" stroke-width="4"/><circle cx="'+c[0]+'" cy="'+c[1]+'" r="'+(c[2]*.55)+'" fill="none" stroke="#ffe08a" stroke-width="3"/></g>'});return g}
+const SCENES={
+  castle:id=>'<svg viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice">'+sky(id)+clouds(120)+'<path d="M0 560 L180 400 L320 540 L470 380 L640 540Z" fill="#9cc6e0" opacity=".6"/>'+hills()+castle(800,500,.78)+coins()+'<g fill="#f2a0d0"><circle cx="70" cy="670" r="12"/><circle cx="940" cy="690" r="12"/></g></svg>',
+  meadow:id=>'<svg viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice"><rect width="1000" height="720" fill="#7cc855"/><g fill="#5fae3f">'+[...Array(14)].map((_,i)=>'<circle cx="'+((i*137)%1000)+'" cy="'+((i*271)%720)+'" r="'+(28+(i%4)*10)+'"/>').join('')+'</g><g fill="#3f8a2c">'+[[40,120],[120,60],[940,90],[880,40],[60,600],[960,640],[700,40]].map(p=>'<circle cx="'+p[0]+'" cy="'+p[1]+'" r="48"/><rect x="'+(p[0]-7)+'" y="'+(p[1]+30)+'" width="14" height="40" fill="#7a4a22"/>').join('')+'</g></svg>',
+  sky:id=>'<svg viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice">'+sky(id)+clouds(150)+'<g fill="#fff" opacity=".85"><ellipse cx="500" cy="760" rx="600" ry="110"/></g>'+castle(935,600,.5)+'</svg>',
+  clouds:id=>'<svg viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice">'+sky(id)+clouds(110)+'<g fill="#fff"><ellipse cx="120" cy="720" rx="220" ry="90"/><ellipse cx="420" cy="740" rx="240" ry="90"/><ellipse cx="740" cy="720" rx="260" ry="100"/><ellipse cx="980" cy="740" rx="200" ry="90"/></g><g fill="#e6f4ff"><ellipse cx="280" cy="700" rx="140" ry="50"/><ellipse cx="620" cy="690" rx="150" ry="50"/></g></svg>'
+};
+let sceneN=0;
+$$('.scene').forEach(s=>s.innerHTML=SCENES[s.dataset.scene]('sk'+(sceneN++)));
+
+/* map path */
+(function(){
+  const d='M120 600 C 260 520, 380 520, 330 470 C 280 420, 420 300, 520 255 C 640 200, 760 300, 700 360 C 640 420, 760 470, 900 380 C 980 330, 1000 200, 1000 160';
+  $('#mapSvg').innerHTML='<defs><linearGradient id="road" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#9b6ad8"/><stop offset=".35" stop-color="#e45a9a"/><stop offset=".65" stop-color="#f08a3c"/><stop offset="1" stop-color="#f5c542"/></linearGradient></defs>'+
+  '<path d="'+d+'" fill="none" stroke="#6b4a2a" stroke-width="92" stroke-linecap="round" opacity=".35"/>'+
+  '<path d="'+d+'" fill="none" stroke="url(#road)" stroke-width="78" stroke-linecap="round"/>'+
+  '<path d="'+d+'" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="6" stroke-dasharray="26 22" stroke-linecap="round"/>'+
+  '<g transform="translate(150 110)"><path d="M0 70 L80 10 L160 70Z" fill="#4e6aa8"/><rect x="18" y="66" width="124" height="80" fill="#c98b4e"/><rect x="66" y="100" width="28" height="46" fill="#6d3f1c"/><rect x="32" y="84" width="22" height="20" fill="#ffe7a3"/><rect x="108" y="84" width="22" height="20" fill="#ffe7a3"/></g>'+
+  '<g transform="translate(880 120)"><circle r="44" fill="none" stroke="#b5542a" stroke-width="8"/><g stroke="#b5542a" stroke-width="5">'+[0,45,90,135].map(a=>'<line x1="-44" y1="0" x2="44" y2="0" transform="rotate('+a+')"/>').join('')+'</g><circle r="8" fill="#b5542a"/><path d="M-10 40 L-40 120 M10 40 L40 120" stroke="#b5542a" stroke-width="8"/></g>'+
+  '<g transform="translate(70 470)"><ellipse cx="0" cy="0" rx="46" ry="36" fill="#e9573f"/><g fill="#fff"><circle cx="-18" cy="-8" r="8"/><circle cx="14" cy="-16" r="6"/><circle cx="20" cy="8" r="7"/></g><rect x="-16" y="20" width="32" height="40" rx="8" fill="#f4e3c6"/></g>';
+})();
+
+$$('[data-pause]').forEach(b=>{b.innerHTML=PAUSE;b.onclick=()=>{sfx.tap();pauseMenu()}});
+$('#l2Restart').innerHTML=RESTART;
+['#l1Next','#l2Next','#l3Next'].forEach(s=>$(s).innerHTML=NEXT);
+['#l1Cloud','#l2Cloud'].forEach(s=>$(s).insertAdjacentHTML('afterbegin',CLOUD));
+function say(sel,html){const c=$(sel);c.querySelector('p').innerHTML=html;c.classList.remove('talk');void c.offsetWidth;c.classList.add('talk')}
+
+/* ---------- navigation ---------- */
+function show(id){
+  S.screen=id;
+  $$('.screen').forEach(s=>s.hidden=s.id!=='s-'+id);
+  $('#overlay').hidden=true;
+  renderStars(false);
+  if(id==='map') renderMap();
+}
+function renderMap(){
+  const unlocked={1:true,2:S.done[1],3:S.done[2]};
+  let current=!S.done[1]?1:!S.done[2]?2:!S.done[3]?3:0;
+  $$('.lvl-node').forEach(b=>{
+    const l=+b.dataset.l;
+    b.disabled=!unlocked[l];
+    b.classList.toggle('current',l===current);
+    b.querySelector('.tag').textContent=S.done[l]?'★ '+S.stars[l]+'/15':(unlocked[l]?'Play':'Locked');
+  });
+  $('#finishBtn').hidden=!(S.done[1]&&S.done[2]&&S.done[3]);
+  $('#mapHint').textContent=current?['','Tap Level 1 to begin your journey.','Level 2 is open. Head to the spinner!','Level 3 is open. One more stop!'][current]:'You crossed Chanceland! Replay any level or see your score.';
+}
+$('#startBtn').onclick=()=>{sfx.ok();show('map')};
+$$('.lvl-node').forEach(b=>b.onclick=()=>{sfx.tap();startLevel(+b.dataset.l)});
+$('#finishBtn').onclick=()=>{sfx.win();showEnd()};
+
+function startLevel(l){
+  if(S.done[3]) S.bonus=0;
+  S.stars[l]=0; // replay resets this level's stars
+  if(l===1) l1Start(); if(l===2) l2Start(); if(l===3) l3Start();
+  show('l'+l);
+}
+
+function overlay(html){$('#card').innerHTML=html;$('#overlay').hidden=false;const b=$('#card button');if(b)b.focus()}
+function pauseMenu(){
+  const lvl=S.screen.startsWith('l')?+S.screen[1]:0;
+  overlay('<h2>Paused</h2><p>Take a breath. Your stars are safe.</p><div class="btns"><button class="gold-btn sm" id="pRes">Resume</button>'+(lvl?'<button class="plain-btn" id="pRe">Restart level</button>':'')+'<button class="plain-btn" id="pMap">Map</button><button class="plain-btn" id="pMute">Sound: '+(muted?'off':'on')+'</button></div>');
+  $('#pRes').onclick=()=>{$('#overlay').hidden=true};
+  if(lvl) $('#pRe').onclick=()=>startLevel(lvl);
+  $('#pMap').onclick=()=>show('map');
+  $('#pMute').onclick=e=>{muted=!muted;e.target.textContent='Sound: '+(muted?'off':'on')};
+}
+function levelDone(l,msg){
+  S.done[l]=true;
+  if(S.done[1]&&S.done[2]&&S.done[3]&&!S.bonus){S.bonus=BONUS}
+  sfx.win();
+  const got=S.stars[l], n=Math.max(1,Math.round(got/5));
+  const last=l===3||(S.done[1]&&S.done[2]&&S.done[3]);
+  overlay('<div class="stars-row">'+Array.from({length:n},(_,i)=>STAR.replace('<svg','<svg style="animation-delay:'+(i*.12)+'s"')).join('')+'</div><h2>Level '+l+' complete!</h2><p>You earned <b>'+got+' of 15</b> stars. '+msg+'</p>'+(last&&S.bonus?'<p>Bonus: <b>+'+BONUS+' stars</b> for crossing all of Chanceland.</p>':'')+'<div class="btns">'+(last?'<button class="gold-btn sm" id="dEnd">Finish</button>':'<button class="gold-btn sm" id="dMap">Continue</button>')+'<button class="plain-btn" id="dRe">Play again</button></div>');
+  renderStars(true);
+  if($('#dEnd')) $('#dEnd').onclick=showEnd;
+  if($('#dMap')) $('#dMap').onclick=()=>show('map');
+  $('#dRe').onclick=()=>startLevel(l);
+}
+function showEnd(){
+  const t=total();
+  $('#endScore').textContent=t;
+  $('#endRank').textContent=t>=45?'Chance Champion':t>=35?'Probability Pro':t>=25?'Lucky Explorer':'Brave Beginner';
+  $('#endBreak').innerHTML='<span>Level 1: '+S.stars[1]+'/15</span><span>Level 2: '+S.stars[2]+'/15</span><span>Level 3: '+S.stars[3]+'/15</span><span>Bonus: '+S.bonus+'/5</span>';
+  show('end');
+}
+$('#againBtn').onclick=()=>{S.stars={1:0,2:0,3:0};S.done={1:false,2:false,3:false};S.bonus=0;show('title')};
+$('#endMap').onclick=()=>show('map');
+
+/* ---------- burst particles ---------- */
+function burst(el,colors){
+  const r=el.getBoundingClientRect(),g=$('#game').getBoundingClientRect();
+  for(let i=0;i<12;i++){
+    const s=document.createElement('i');s.className='spark';
+    s.style.left=(r.left-g.left+r.width/2)+'px';s.style.top=(r.top-g.top+r.height/2)+'px';
+    s.style.background=colors[i%colors.length];
+    const a=Math.random()*Math.PI*2,d=40+Math.random()*60;
+    s.style.setProperty('--x',Math.cos(a)*d+'px');s.style.setProperty('--y',Math.sin(a)*d+'px');
+    $('#game').appendChild(s);setTimeout(()=>s.remove(),750);
+  }
+}
+
+/* ================= LEVEL 1: Dice Playground ================= */
+const L1_TASKS=[
+  {n:6,die:'die-red',verb:'Burst',noun:['balloon','balloons'],emoji:'🎈',kind:'balloon'},
+  {n:4,die:'die-white',verb:'Slice',noun:['apple','apples'],emoji:'🍎',kind:'fruit'},
+  {n:2,die:'die-green',verb:'Cut',noun:['pineapple','pineapples'],emoji:'🍍',kind:'fruit'}
+];
+const BALLOON_COLORS=['#7fae3a','#e0362e','#9cc8ef','#1e4fb0','#f2b8d4','#3f9a4a','#f5c542','#a77be0'];
+const L1={task:0,need:0,got:0,phase:'roll',rx:0,ry:0};
+function buildCube(){
+  $('#cube').innerHTML=[1,2,3,4,5,6].map(n=>'<div class="face f'+n+'">'+PIPS[n].map(p=>'<i style="grid-area:'+p[0]+'/'+p[1]+'"></i>').join('')+'</div>').join('');
+}
+buildCube();
+function l1Start(){L1.task=0;l1Task()}
+function l1Task(){
+  const t=L1_TASKS[L1.task];
+  L1.phase='roll';L1.got=0;L1.need=0;
+  $('#dieBtn').className='die-btn ask '+t.die;$('#dieBtn').disabled=false;
+  $('#rollLbl').textContent='Tap the dice to roll';
+  say('#l1Cloud','Roll the dice!<span class="sub">The number tells you how many to '+t.verb.toLowerCase()+'</span>');
+  $$('#l1Dots i').forEach((d,i)=>d.className=i<L1.task?'done':i===L1.task?'on':'');
+  $('#l1Fact').textContent='';
+  $('#l1Next').disabled=true;$('#l1Next').classList.remove('ready');
+  const f=$('#field');f.className='field locked';f.innerHTML='';
+  for(let i=0;i<8;i++){
+    const b=document.createElement('button');b.className='item';b.setAttribute('aria-label',t.noun[0]+' '+(i+1));
+    if(t.kind==='balloon') b.innerHTML='<div class="balloon" style="--c:'+BALLOON_COLORS[i]+';--d:-'+(i*.37).toFixed(2)+'s"></div><span class="tick">✓</span>';
+    else b.innerHTML='<div class="fruit"><span class="h1">'+t.emoji+'</span><span class="h2">'+t.emoji+'</span></div><i class="slash"></i><span class="tick">✓</span>';
+    b.onclick=()=>l1Hit(b);
+    f.appendChild(b);
+  }
+}
+$('#dieBtn').onclick=()=>{
+  if(L1.phase!=='roll') return;
+  L1.phase='rolling';$('#dieBtn').classList.remove('ask');$('#dieBtn').disabled=true;
+  const n=L1_TASKS[L1.task].n, [tx,ty]=FACE_ROT[n];
+  const spins=2+Math.floor(Math.random()*2);
+  L1.rx=L1.rx-((L1.rx%360)+360)%360+360*spins+tx;
+  L1.ry=L1.ry-((L1.ry%360)+360)%360+360*spins+ty;
+  $('#cube').style.transform='rotateX('+L1.rx+'deg) rotateY('+L1.ry+'deg)';
+  $('#rollLbl').textContent='Rolling...';
+  let k=0;const tk=setInterval(()=>{sfx.tick();if(++k>10)clearInterval(tk)},110);
+  setTimeout(()=>{
+    const t=L1_TASKS[L1.task];
+    L1.need=n;L1.phase='act';
+    $('#rollLbl').textContent='You rolled a '+n+'!  0 / '+n;
+    say('#l1Cloud',t.verb+' '+n+' '+(n===1?t.noun[0]:t.noun[1])+' '+t.emoji);
+    $('#field').classList.remove('locked');
+    sfx.ok();
+  },1450);
+};
+function l1Hit(b){
+  if(L1.phase!=='act'||b.disabled) return;
+  const t=L1_TASKS[L1.task];
+  b.disabled=true;
+  if(t.kind==='balloon'){b.classList.add('popped');sfx.pop();burst(b,[getComputedStyle(b.firstChild).getPropertyValue('--c'),'#fff','#f7c331'])}
+  else{b.classList.add('cut');sfx.slice();burst(b,t.emoji==='🍎'?['#fff3c4','#e0362e']:['#ffe066','#7fbf3f'])}
+  setTimeout(()=>b.classList.add('got'),200);
+  L1.got++;
+  $('#rollLbl').textContent='You rolled a '+L1.need+'!  '+L1.got+' / '+L1.need;
+  if(L1.got>=L1.need){
+    L1.phase='done';
+    $('#field').classList.add('locked');
+    addStars(1,5);sfx.win();
+    say('#l1Cloud','Well done! <span class="sub">+5 stars</span>');
+    $('#l1Fact').textContent='A die has 6 faces, so each number from 1 to 6 has a 1 in 6 chance of coming up. This time it was '+L1.need+'.';
+    $$('#l1Dots i')[L1.task].className='done';
+    $('#l1Next').disabled=false;$('#l1Next').classList.add('ready');$('#l1Next').focus();
+  }
+}
+$('#l1Next').onclick=()=>{
+  sfx.tap();
+  if(L1.task<2){L1.task++;l1Task()}
+  else levelDone(1,'Every roll was a surprise. That is chance!');
+};
+
+/* ================= LEVEL 2: Guess & Spin ================= */
+const COLORS={Blue:'#5b9be8',Yellow:'#f7cb4d',Orange:'#f5a043',Red:'#ee5f55'};
+const SHADE={Blue:'#3f7fd0',Yellow:'#e9b32e',Orange:'#e2852a',Red:'#d6453c'};
+const WHEEL_MARKS=['★','N','Z','★','S','★','V','8','2','★','H','M'];
+const L2_ROUNDS=[
+  ['Blue','Yellow','Blue','Orange','Yellow','Blue','Red','Yellow','Blue','Orange','Yellow','Blue'],
+  ['Red','Yellow','Red','Blue','Red','Orange','Red','Yellow','Red','Blue','Red','Yellow'],
+  ['Yellow','Orange','Yellow','Blue','Yellow','Orange','Yellow','Red','Yellow','Orange','Yellow','Yellow']
+];
+const L2={round:0,pick:null,rot:0,phase:'pick'};
+function arc(i,n){
+  const a0=(i/n)*2*Math.PI-Math.PI/2,a1=((i+1)/n)*2*Math.PI-Math.PI/2,R=170;
+  return 'M200 200 L'+(200+R*Math.cos(a0)).toFixed(2)+' '+(200+R*Math.sin(a0)).toFixed(2)+' A'+R+' '+R+' 0 0 1 '+(200+R*Math.cos(a1)).toFixed(2)+' '+(200+R*Math.sin(a1)).toFixed(2)+'Z';
+}
+function drawWheel(segs){
+  const n=segs.length;
+  let g='<circle cx="200" cy="200" r="172" fill="#fff"/>';
+  segs.forEach((c,i)=>{
+    const mid=((i+.5)/n)*2*Math.PI-Math.PI/2, deg=(i+.5)*360/n;
+    g+='<path d="'+arc(i,n)+'" fill="'+COLORS[c]+'" stroke="#fff" stroke-width="5" stroke-linejoin="round"/>';
+    // soft inner highlight like the Canva wheel
+    g+='<path d="'+arc(i,n)+'" fill="url(#segGloss)" />';
+    g+='<path d="M200 200 L'+(200+170*Math.cos(mid-.05)).toFixed(1)+' '+(200+170*Math.sin(mid-.05)).toFixed(1)+'" stroke="'+SHADE[c]+'" stroke-width="3" opacity=".35"/>';
+    const x=200+132*Math.cos(mid),y=200+132*Math.sin(mid);
+    g+='<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" transform="rotate('+deg.toFixed(1)+' '+x.toFixed(1)+' '+y.toFixed(1)+')" text-anchor="middle" dominant-baseline="central" font-family="Poppins,Arial" font-weight="800" font-size="30" fill="#fff" stroke="'+SHADE[c]+'" stroke-width="2" paint-order="stroke">'+WHEEL_MARKS[i%WHEEL_MARKS.length]+'</text>';
+  });
+  $('#wheelSvg').innerHTML='<defs><radialGradient id="segGloss" cx="200" cy="200" r="172" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="#fff" stop-opacity=".35"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".08"/></radialGradient></defs>'+g;
+  $('#wheelSpin').style.transform='rotate('+L2.rot+'deg)';
+}
+function drawWheelFrame(){
+  let bulbs='';
+  for(let i=0;i<24;i++){const a=i/24*2*Math.PI;bulbs+='<circle cx="'+(200+186*Math.cos(a)).toFixed(1)+'" cy="'+(200+186*Math.sin(a)).toFixed(1)+'" r="5.5" fill="#fff8d6" stroke="#e7a12a" stroke-width="1.5"/>'}
+  $('#wheelFrame').innerHTML=
+    '<defs><linearGradient id="rimG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd86b"/><stop offset=".5" stop-color="#f6b12f"/><stop offset="1" stop-color="#e08d17"/></linearGradient>'+
+    '<radialGradient id="hubG" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".6" stop-color="#f7b733"/><stop offset="1" stop-color="#d98a12"/></radialGradient>'+
+    '<radialGradient id="gemG" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#ffb3a8"/><stop offset=".5" stop-color="#e8463c"/><stop offset="1" stop-color="#a8231c"/></radialGradient></defs>'+
+    '<circle cx="200" cy="200" r="186" fill="none" stroke="url(#rimG)" stroke-width="28"/>'+
+    '<circle cx="200" cy="200" r="172" fill="none" stroke="#d98a12" stroke-width="3"/>'+
+    '<circle cx="200" cy="200" r="200" fill="none" stroke="#d98a12" stroke-width="3"/>'+bulbs+
+    '<circle cx="200" cy="200" r="34" fill="url(#hubG)" stroke="#d98a12" stroke-width="4"/>'+
+    '<circle cx="200" cy="200" r="16" fill="url(#gemG)"/><circle cx="194" cy="194" r="4" fill="#fff" opacity=".8"/>'+
+    // top pointer: gold ball with a downward point, as on the Canva wheel
+    '<path d="M186 6 Q200 -2 214 6 L204 46 Q200 52 196 46Z" fill="url(#rimG)" stroke="#c97a10" stroke-width="3" stroke-linejoin="round"/>'+
+    '<circle cx="200" cy="-6" r="15" fill="url(#hubG)" stroke="#c97a10" stroke-width="3"/><circle cx="195" cy="-11" r="4" fill="#fff" opacity=".8"/>';
+}
+function drawPedestal(){
+  $('#pedestal').innerHTML='<defs><linearGradient id="pedSide" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e08a14"/><stop offset=".35" stop-color="#ffc94d"/><stop offset=".7" stop-color="#f7a92a"/><stop offset="1" stop-color="#d47c0e"/></linearGradient>'+
+   '<linearGradient id="pedTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#ffbf3d"/></linearGradient></defs>'+
+   // post holding the wheel
+   '<rect x="182" y="0" width="36" height="40" rx="6" fill="url(#pedSide)"/>'+
+   // bottom tier
+   '<path d="M20 86 V104 A180 24 0 0 0 380 104 V86Z" fill="url(#pedSide)"/><ellipse cx="200" cy="86" rx="180" ry="24" fill="url(#pedTop)" stroke="#e5951c" stroke-width="2"/>'+
+   // top tier
+   '<path d="M70 50 V70 A130 18 0 0 0 330 70 V50Z" fill="url(#pedSide)"/><ellipse cx="200" cy="50" rx="130" ry="18" fill="url(#pedTop)" stroke="#e5951c" stroke-width="2"/>'+
+   '<ellipse cx="200" cy="48" rx="60" ry="7" fill="#fff" opacity=".35"/><ellipse cx="200" cy="84" rx="110" ry="9" fill="#fff" opacity=".25"/>';
+}
+drawWheelFrame();drawPedestal();
+function l2Start(){L2.round=0;l2Round()}
+function l2Round(){
+  L2.pick=null;L2.phase='pick';
+  drawWheel(L2_ROUNDS[L2.round]);
+  $('#l2Round').textContent='Spin '+(L2.round+1)+' of 3';
+  say('#l2Cloud','Pick a color<span class="sub">Which color will the wheel most likely land on?</span>');
+  $('#chips').innerHTML=Object.keys(COLORS).map(c=>'<button class="chip" aria-pressed="false" data-c="'+c+'" style="--c:'+COLORS[c]+'"><i></i>'+c+'</button>').join('');
+  $$('#chips .chip').forEach(ch=>ch.onclick=()=>{
+    if(L2.phase!=='pick') return;
+    sfx.tap();L2.pick=ch.dataset.c;
+    $$('#chips .chip').forEach(x=>x.setAttribute('aria-pressed',x===ch?'true':'false'));
+    $('#spinBtn').disabled=false;
+    say('#l2Cloud','You picked '+L2.pick+'!<span class="sub">Now press SPIN</span>');
+  });
+  $('#spinBtn').disabled=false;
+  $('#l2Fact').textContent='Tip: count the parts of each color before you choose.';
+  $('#l2Next').disabled=true;$('#l2Next').classList.remove('ready');
+}
+$('#spinBtn').onclick=()=>{
+  if(L2.phase!=='pick') return;
+  if(!L2.pick){
+    sfx.no();
+    say('#l2Cloud','Pick a color first!<span class="sub">Tap Blue, Yellow, Orange or Red</span>');
+    $$('#chips .chip').forEach(c=>{c.classList.remove('nudge');void c.offsetWidth;c.classList.add('nudge')});
+    return;
+  }
+  L2.phase='spin';$('#spinBtn').disabled=true;$$('#chips .chip').forEach(x=>x.disabled=true);
+  const segs=L2_ROUNDS[L2.round],n=segs.length,i=Math.floor(Math.random()*n);
+  const center=(i+.5)*360/n, jitter=(Math.random()-.5)*(360/n)*.6;
+  const cur=((L2.rot%360)+360)%360;
+  L2.rot+=360*5+((360-center-jitter-cur)%360+360)%360;
+  $('#wheelSpin').style.transform='rotate('+L2.rot+'deg)';
+  say('#l2Cloud','Spinning...');
+  let k=0;const tk=setInterval(()=>{sfx.tick();if(++k>22)clearInterval(tk)},150);
+  setTimeout(()=>l2Result(segs[i]),3700);
+};
+function l2Result(landed){
+  const segs=L2_ROUNDS[L2.round],count={};segs.forEach(c=>count[c]=(count[c]||0)+1);
+  const best=Object.keys(count).sort((a,b)=>count[b]-count[a])[0];
+  let earned=0;
+  if(L2.pick===best) earned+=3;
+  if(L2.pick===landed) earned+=2;
+  addStars(2,earned);
+  (earned?sfx.ok:sfx.no)();
+  const head=L2.pick===landed?'It landed on '+landed+'! 🎉':'It landed on '+landed+'.';
+  say('#l2Cloud',head+'<span class="sub">+'+earned+' stars</span>');
+  $('#l2Fact').innerHTML=best+' covers <b>'+count[best]+' of '+segs.length+'</b> parts, so it was the most likely color. '+(L2.pick===best?'Great thinking!':'You picked '+L2.pick+', which has '+(count[L2.pick]||0)+' of '+segs.length+'.')+(landed!==best?' Chance can still surprise us!':'');
+  L2.phase='done';
+  $('#l2Next').disabled=false;$('#l2Next').classList.add('ready');$('#l2Next').focus();
+}
+$('#l2Next').onclick=()=>{
+  sfx.tap();
+  if(L2.round<2){L2.round++;l2Round()}
+  else levelDone(2,'The color with the most parts is the most likely.');
+};
+$('#l2Restart').onclick=()=>{sfx.tap();if(L2.phase!=='spin')startLevel(2)};
+
+/* ================= LEVEL 3: Pick the Most Likely ================= */
+const ball=c=>({html:'<div class="thing ball" style="--c:'+c+'"></div>'});
+const emo=e=>({html:'<div class="thing emo">'+e+'</div>'});
+const L3_Q=[
+  {q:'Which color will you most likely pick?',sub:'You pick one ball without looking.',items:[...Array(5)].map(()=>ball('#e8463c')).concat([ball('#1f6fd1'),ball('#1f6fd1')]),kinds:[0,0,0,0,0,1,1],opts:['RED','BLUE'],names:['red','blue'],right:0},
+  {q:'Which is more?',sub:'Grab one fruit without looking. Which will you most likely get?',items:[...Array(5)].map(()=>emo('🍎')).concat([emo('🍉'),emo('🍉')]),kinds:[0,0,0,0,0,1,1],opts:['Apple','Watermelon'],names:['apple','watermelon'],right:0},
+  {q:'Which will you get?',sub:'One shape is picked from the sky at random.',items:[emo('🌙')].concat([...Array(4)].map(()=>emo('⭐'))),kinds:[0,1,1,1,1],opts:['Moon','Star'],names:['moon','star'],right:1}
+];
+const L3={i:0,phase:'ask'};
+function l3Start(){L3.i=0;l3Q()}
+function l3Q(){
+  const Q=L3_Q[L3.i];L3.phase='ask';
+  $('#l3Count').textContent=(L3.i+1)+' / 3';
+  $('#l3Q').textContent=Q.q;$('#l3Sub').textContent=Q.sub;
+  $('#l3Row').innerHTML=Q.items.map(x=>x.html).join('');
+  $('#l3Ans').innerHTML=Q.opts.map((o,k)=>'<button class="ans '+(k?'b':'a')+'" data-k="'+k+'">'+o+'</button>').join('');
+  $$('#l3Ans .ans').forEach(b=>b.onclick=()=>l3Pick(+b.dataset.k,b));
+  $('#l3Fact').textContent='';
+  $('#l3Next').disabled=true;$('#l3Next').classList.remove('ready');
+}
+function l3Pick(k,btn){
+  if(L3.phase!=='ask') return;
+  L3.phase='draw';
+  const Q=L3_Q[L3.i],correct=k===Q.right;
+  $$('#l3Ans .ans').forEach(b=>b.disabled=true);
+  btn.classList.add(correct?'right':'wrong');
+  if(!correct) $$('#l3Ans .ans')[Q.right].classList.add('right');
+  (correct?sfx.ok:sfx.no)();
+  if(correct) addStars(3,5);
+  // draw one at random to show the chance in action
+  const things=$$('#l3Row .thing'),n=things.length,pick=Math.floor(Math.random()*n);
+  let step=0;const steps=14+pick;
+  (function hop(){
+    things.forEach(t=>t.classList.remove('hl'));
+    things[step%n].classList.add('hl');sfx.tick();
+    if(step<steps){step++;setTimeout(hop,60+step*9)}
+    else{
+      things.forEach((t,j)=>t.classList.toggle('dim',j!==pick));
+      const got=Q.kinds[pick],cnt=Q.kinds.filter(x=>x===Q.right).length;
+      $('#l3Fact').innerHTML=(correct?'Correct! +5 stars. ':'Not this time. ')+Q.opts[Q.right]+' was more likely: <b>'+cnt+' out of '+n+'</b>. The random pick gave you a <b>'+Q.names[got]+'</b>.'+(got!==Q.right?' Less likely things can still happen!':'');
+      L3.phase='done';
+      $('#l3Next').disabled=false;$('#l3Next').classList.add('ready');$('#l3Next').focus();
+    }
+  })();
+}
+$('#l3Next').onclick=()=>{
+  sfx.tap();
+  if(L3.i<2){L3.i++;l3Q()}
+  else levelDone(3,'More of something means a better chance of getting it.');
+};
+
+/* boot */
+
+renderStars(false);
+show('title');
+})();
+</script>
